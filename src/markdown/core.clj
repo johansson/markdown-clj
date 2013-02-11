@@ -36,6 +36,24 @@
               (transformer "" (assoc state :eof true))))))
       (.flush wrt))))
 
+(defn md-to-html-leave-write-open
+  "reads markdown content from the input stream and writes HTML to the provided output stream, but does not close the output stream"
+  [in out & params]
+  (binding [markdown.transformers/*substring*/ (fn [s n ] (.substring s n))]
+    (with-open [rdr (io/reader in)]
+	  (let [transformer (init-transformer out transformer-list)]
+	    (loop [line  (.readLine rdr)
+		        state (apply (partial assoc {} :last-line-empty? true) params)]
+		  (let [state (if (:buf state)
+		                (transformer (:buf state) (-> state (dissoc :buf :lists) (assoc :last-line-empty? true)))
+						state)]
+			(if line
+			  (recur (.readLine rdr)
+			         (assoc (transformer line state)
+					        :last-line-empty? (empty? (.trim line))))
+			  (transformer "" (assoc state :eof true))))))
+	  (.flush out))))
+
 (defn md-to-html-string
   "converts a markdown formatted string to an HTML formatted string"
   [text & params]  
